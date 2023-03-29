@@ -11,7 +11,7 @@ function AppVeyorReporter(runner, options) {
   this.options.appveyorBatchSize = process.env.APPVEYOR_BATCH_SIZE || this.options.appveyorBatchSize || 100;
   this.options.appveyorBatchIntervalInMs = process.env.APPVEYOR_BATCH_INTERVAL_IN_MS || this.options.appveyorBatchIntervalInMs || 1000;
 
-  var request = require('request-json'),
+  var got = require('got'),
     log = console.log.bind(console),
     error = console.error.bind(console),
     warn = console.warn.bind(console),
@@ -23,7 +23,9 @@ function AppVeyorReporter(runner, options) {
   }
 
   // Client to be used to make API calls.
-  this.client = this.options.appveyorApiUrl ? request.createClient(this.options.appveyorApiUrl) : undefined;
+  this.client = this.options.appveyorApiUrl ? got.default.extend({
+    prefixUrl: this.options.appveyorApiUrl
+  }) : undefined;
   // Callback to be invoked (if defined) when an in flight request is completed.
   this.doneCb = undefined;
   // Whether or not API call is in flight.
@@ -164,11 +166,10 @@ AppVeyorReporter.prototype.sendTests = function() {
     self.inFlight = true;
     var data = this.testQueue.slice();
     self.testQueue = [];
-    self.client.post('api/tests/batch', data, function (err, response, body) {
+    self.client.post('api/tests/batch', {
+      json: data,
+    }).then((response) => {
       self.inFlight = false;
-      if (err) {
-        console.error("Error returned from posting test result to AppVeyor. Response: %s, Body: %s. \n.", response, body);
-      }
       // if doneCb set, and test queue is empty, invoke doneCb, otherwise if not empty, send tests immediately.
       if (self.doneCb) {
         if (self.testQueue.length === 0) {
@@ -183,6 +184,9 @@ AppVeyorReporter.prototype.sendTests = function() {
           self.scheduleTests();
         }
       }
+    }).catch((err) => {
+      self.inFlight = false;
+      console.error("Error returned from posting test result to AppVeyor. Error: %s. \n.", err);
     });
   }
 };

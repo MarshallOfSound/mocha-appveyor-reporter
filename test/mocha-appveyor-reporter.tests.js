@@ -12,19 +12,22 @@ describe('mocha-appveyor-reporter', function() {
       warnOnReplace: false
     });
 
-    mockery.registerMock('request-json', {
-      createClient: function(url) {
-        url.should.equal(apiUrl);
+    mockery.registerMock('got', {
+      default: {
+        extend: function({ prefixUrl }) {
+          prefixUrl.should.equal(apiUrl);
 
-        jsonPost = sinon.spy(function(path, data, callback) {
-          path.should.equal('api/tests/batch');
-          // concat tests as it will be an array of tests.
-          tests = tests.concat(data);
-          callback(null);
-        });
+          jsonPost = sinon.spy(function(path, { json: data }) {
+            path.should.equal('api/tests/batch');
+            // concat tests as it will be an array of tests.
+            tests = tests.concat(data);
+            
+            return Promise.resolve(null);
+          });
 
-        return {
-          post: jsonPost
+          return {
+            post: jsonPost
+          }
         }
       }
     });
